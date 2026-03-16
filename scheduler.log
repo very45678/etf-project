@@ -1,0 +1,28 @@
+2026-03-04 11:09:09,914 - scheduler - INFO - 开始执行净值数据采集任务...
+2026-03-04 11:10:29,287 - scheduler - INFO - 净值数据采集完成，成功获取 4 条数据
+2026-03-04 11:10:29,296 - scheduler - INFO - 开始执行价格数据采集任务...
+2026-03-04 11:10:47,647 - scheduler - INFO - 价格数据采集完成，成功获取 4 条数据
+2026-03-04 11:10:47,648 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-04 11:10:47,649 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-04 11:10:47,652 - apscheduler.scheduler - INFO - Added job "价格数据采集任务" to job store "default"
+2026-03-04 11:10:47,653 - apscheduler.scheduler - INFO - Added job "净值数据采集任务" to job store "default"
+2026-03-04 11:10:47,653 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-04 11:10:47,654 - scheduler - INFO - 定时任务调度器已启动
+2026-03-04 11:10:47,654 - scheduler - INFO - 价格数据采集任务：每5分钟执行一次
+2026-03-04 11:10:47,654 - scheduler - INFO - 净值数据采集任务：每天9:30执行
+2026-03-04 11:10:47,655 - apscheduler.scheduler - INFO - Scheduler has been shut down
+2026-03-04 11:10:47,655 - scheduler - INFO - 定时任务调度器已停止
+2026-03-04 11:20:10,799 - scheduler - INFO - 开始执行净值数据采集任务...
+2026-03-04 11:21:28,260 - scheduler - INFO - 净值数据采集完成，成功获取 4 条数据
+2026-03-04 11:21:28,261 - scheduler - INFO - 开始执行价格数据采集任务...
+2026-03-04 11:21:48,246 - scheduler - INFO - 价格数据采集完成，成功获取 4 条数据
+2026-03-04 11:21:48,248 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-04 11:21:48,249 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-04 11:21:48,250 - apscheduler.scheduler - INFO - Added job "价格数据采集任务" to job store "default"
+2026-03-04 11:21:48,250 - apscheduler.scheduler - INFO - Added job "净值数据采集任务" to job store "default"
+2026-03-04 11:21:48,251 - apscheduler.scheduler - INFO - Scheduler started
+2026-03-04 11:21:48,251 - scheduler - INFO - 定时任务调度器已启动
+2026-03-04 11:21:48,252 - scheduler - INFO - 价格数据采集任务：每5分钟执行一次
+2026-03-04 11:21:48,252 - scheduler - INFO - 净值数据采集任务：每天9:30执行
+2026-03-04 11:21:48,252 - apscheduler.scheduler - INFO - Scheduler has been shut down
+2026-03-04 11:21:48,253 - scheduler - INFO - 定时任务调度器已停止

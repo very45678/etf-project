@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试API通信</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+        .response { margin-top: 10px; padding: 10px; background: #f5f5f5; border-radius: 5px; white-space: pre-wrap; }
+        button { padding: 10px 20px; margin: 5px; background: #409EFF; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #66b1ff; }
+    </style>
+</head>
+<body>
+    <h1>测试API通信</h1>
+    
+    <div class="test-section">
+        <h2>测试后端API连接</h2>
+        <button onclick="testApi('http://127.0.0.1:5001/api/test')">测试测试API</button>
+        <button onclick="testApi('http://127.0.0.1:5001/api/funds')">测试基金列表API</button>
+        <button onclick="testApi('http://127.0.0.1:5001/api/prices')">测试价格数据API</button>
+        <button onclick="testApi('http://127.0.0.1:5001/api/nav')">测试净值数据API</button>
+        <button onclick="testApi('http://127.0.0.1:5001/api/yields')">测试收益率数据API</button>
+        <div id="api-response" class="response"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>测试前端代理</h2>
+        <button onclick="testApi('/api/test')">测试测试API (代理)</button>
+        <button onclick="testApi('/api/funds')">测试基金列表API (代理)</button>
+        <div id="proxy-response" class="response"></div>
+    </div>
+    
+    <script>
+        function testApi(url) {
+            const responseDiv = url.startsWith('/api') ? document.getElementById('proxy-response') : document.getElementById('api-response');
+            responseDiv.innerHTML = '正在请求...';
+            
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    responseDiv.innerHTML = JSON.stringify(data, null, 2);
+                })
+                .catch(error => {
+                    responseDiv.innerHTML = `错误: ${error.message}`;
+                });
+        }
+    </script>
+</body>
+</html>

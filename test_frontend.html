@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试前端与后端通信</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+        .response { margin-top: 10px; padding: 10px; background: #f5f5f5; border-radius: 5px; white-space: pre-wrap; }
+        button { padding: 10px 20px; margin: 5px; background: #409EFF; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #66b1ff; }
+        table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h1>测试前端与后端通信</h1>
+    
+    <div class="test-section">
+        <h2>测试后端API连接</h2>
+        <button onclick="testApi('http://127.0.0.1:5001/api/test')">测试测试API</button>
+        <button onclick="testApi('http://127.0.0.1:5001/api/funds')">测试基金列表API</button>
+        <button onclick="testApi('http://127.0.0.1:5001/api/prices')">测试价格数据API</button>
+        <button onclick="testApi('http://127.0.0.1:5001/api/nav')">测试净值数据API</button>
+        <button onclick="testApi('http://127.0.0.1:5001/api/yields')">测试收益率数据API</button>
+        <div id="api-response" class="response"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>综合数据展示</h2>
+        <button onclick="fetchOverview()">获取综合数据</button>
+        <table id="overview-table">
+            <thead>
+                <tr>
+                    <th>基金代码</th>
+                    <th>净值</th>
+                    <th>买入价</th>
+                    <th>买入收益率</th>
+                    <th>卖出价</th>
+                    <th>卖出收益率</th>
+                </tr>
+            </thead>
+            <tbody id="overview-body">
+                <tr>
+                    <td colspan="6">点击按钮获取数据</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <script>
+        function testApi(url) {
+            const responseDiv = document.getElementById('api-response');
+            responseDiv.innerHTML = '正在请求...';
+            
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    responseDiv.innerHTML = JSON.stringify(data, null, 2);
+                })
+                .catch(error => {
+                    responseDiv.innerHTML = `错误: ${error.message}`;
+                });
+        }
+        
+        function fetchOverview() {
+            const tbody = document.getElementById('overview-body');
+            tbody.innerHTML = '<tr><td colspan="6">正在获取数据...</td></tr>';
+            
+            // 并行获取所有数据
+            Promise.all([
+                fetch('http://127.0.0.1:5001/api/nav'),
+                fetch('http://127.0.0.1:5001/api/prices'),
+                fetch('http://127.0.0.1:5001/api/yields'),
+                fetch('http://127.0.0.1:5001/api/funds')
+            ])
+            .then(responses => Promise.all(responses.map(r => r.json())))
+            .then(([navData, pricesData, yieldsData, fundsData]) => {
+                const selectedFunds = ['511880', '511990'];
+                
+                // 过滤数据
+                const filteredNav = navData.data ? navData.data.filter(nav => selectedFunds.includes(nav.fund_code)) : [];
+                const filteredPrices = pricesData.data ? pricesData.data.filter(price => selectedFunds.includes(price.fund_code)) : [];
+                const filteredYields = yieldsData.data ? yieldsData.data.filter(yieldData => selectedFunds.includes(yieldData.fund_code)) : [];
+                const fundList = fundsData.data ? fundsData.data : [];
+                
+                // 整合数据
+                const overview = [];
+                selectedFunds.forEach(fundCode => {
+                    // 找到最新的净值数据
+                    const nav = filteredNav
+                        .filter(n => n.fund_code === fundCode)
+                        .sort((a, b) => new Date(b.nav_date) - new Date(a.nav_date))[0];
+                    
+                    // 找到最新的价格数据
+                    const price = filteredPrices
+                        .filter(p => p.fund_code === fundCode)
+                        .sort((a, b) => new Date(b.price_date) - new Date(a.price_date))[0];
+                    
+                    // 找到最新的收益率数据
+                    const yieldData = filteredYields
+                        .filter(y => y.fund_code === fundCode)
+                        .sort((a, b) => new Date(b.yield_date) - new Date(a.yield_date))[0];
+                    
+                    // 找到基金名称
+                    const fund = fundList.find(f => f.fund_code === fundCode);
+                    
+                    if (nav && price && yieldData) {
+                        overview.push({
+                            fund_code: fundCode,
+                            fund_name: fund ? fund.fund_name : fundCode,
+                            nav: nav.nav,
+                            nav_date: nav.nav_date,
+                            buy_price: price.buy_price,
+                            sell_price: price.sell_price,
+                            price_date: price.price_date,
+                            yield_rate_buy: yieldData.yield_rate_buy,
+                            yield_rate_sell: yieldData.yield_rate_sell,
+                            yield_date: yieldData.yield_date
+                        });
+                    }
+                });
+                
+                // 更新表格
+                tbody.innerHTML = '';
+                overview.forEach(item => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${item.fund_code}</td>
+                        <td>${item.nav}</td>
+                        <td>${item.buy_price}</td>
+                        <td>${item.yield_rate_buy}</td>
+                        <td>${item.sell_price}</td>
+                        <td>${item.yield_rate_sell}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            })
+            .catch(error => {
+                tbody.innerHTML = `<tr><td colspan="6">错误: ${error.message}</td></tr>`;
+            });
+        }
+    </script>
+</body>
+</html>
