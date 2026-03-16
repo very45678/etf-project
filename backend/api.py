@@ -11,6 +11,10 @@ sys.path.append(os.path.dirname(__file__))
 
 from data_store import get_funds, get_prices, get_nav, get_yields, get_alerts, get_errors
 from scheduler import FundDataScheduler
+from price_fetcher import fetch_all_funds
+from nav_fetcher import fetch_all_funds_nav
+from yield_calculator import calculate_yields_for_all_funds, check_arb_opportunities_for_all_funds
+from data_cleanup import cleanup_old_data
 
 # 初始化日志
 logging.basicConfig(level=logging.INFO)
@@ -384,6 +388,38 @@ def test_api():
             'data': [],
             'message': f'测试API失败: {str(e)}'
         }), 500
+
+@app.route('/api/cron', methods=['GET'])
+def manual_cron():
+    """
+    手动触发任务（用于不支持后台调度器的环境，如PythonAnywhere免费版）
+    """
+    try:
+        logger.info("Cron triggered manually")
+        # 1. 获取价格
+        count_price = fetch_all_funds()
+        
+        # 2. 计算收益率
+        count_yield = calculate_yields_for_all_funds()
+        
+        # 3. 检查套利
+        count_arb = check_arb_opportunities_for_all_funds()
+        
+        # 4. 每天清理一次（简单判断：如果是凌晨2点左右触发）
+        # 这里为了简化，每次都尝试清理，但清理函数内部会判断是否需要清理
+        # 由于清理函数本身开销不大，可以每次都调用，或者添加简单的时间判断
+        import datetime
+        now = datetime.datetime.now()
+        if now.hour == 2 and now.minute < 10:
+             cleanup_old_data()
+        
+        return jsonify({
+            'status': 'success', 
+            'message': f'Tasks executed: Price({count_price}), Yield({count_yield}), Arb({count_arb})'
+        }), 200
+    except Exception as e:
+        logger.error(f"Cron execution failed: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 # 提供前端文件
 @app.route('/', defaults={'path': ''})
