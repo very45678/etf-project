@@ -75,67 +75,60 @@ def fetch_latest_nav(fund_code):
     try:
         # 获取所有开放式基金的最新净值数据
         nav_data = ak.fund_open_fund_daily_em()
-        
+
         # 查找指定基金代码的数据
         fund_data = nav_data[nav_data['基金代码'] == fund_code]
-        
+
         if not fund_data.empty:
             print(f"在开放式基金接口找到数据: {fund_code}")
-            
+
             # 获取最新数据
             latest_row = fund_data.iloc[0]
-            
+
             # 获取基金名称
             if '基金简称' in latest_row:
                 fund_name = latest_row['基金简称']
             else:
                 fund_name = f"基金{fund_code}"
-            
-            # 查找净值相关字段
+
+            # 查找净值相关字段 - 优先找最新的单位净值列（带日期的列名）
             nav_value = None
-            nav_date = datetime.date.today().strftime('%Y-%m-%d')
-            
-            # 优先查找单位净值
-            unit_nav_found = False
+            nav_date = None
+
+            # 遍历所有列，找到包含日期的单位净值列，按日期倒序排列
+            date_columns = []
             for col in nav_data.columns:
                 if '单位净值' in col and '累计' not in col:
-                    if pd.notna(latest_row[col]) and latest_row[col] != '':
-                        nav_value = latest_row[col]
-                        unit_nav_found = True
-                        # 尝试从字段名提取日期
-                        date_match = re.search(r'(\d{4}-\d{2}-\d{2})', col)
-                        if date_match:
-                            nav_date = date_match.group(1)
-                        break
-            
-            # 如果没找到单位净值，再找其他净值字段（排除累计净值）
-            if not unit_nav_found:
-                for col in nav_data.columns:
-                    if '净值' in col and '累计' not in col:
-                        if pd.notna(latest_row[col]) and latest_row[col] != '':
-                            nav_value = latest_row[col]
-                            # 尝试从字段名提取日期
-                            date_match = re.search(r'(\d{4}-\d{2}-\d{2})', col)
-                            if date_match:
-                                nav_date = date_match.group(1)
-                            break
-            
-            # 如果没有找到净值字段，尝试使用'最新净值'或其他可能的字段
+                    date_match = re.search(r'(\d{4}-\d{2}-\d{2})', col)
+                    if date_match:
+                        date_columns.append((col, date_match.group(1)))
+
+            # 按日期倒序排列
+            date_columns.sort(key=lambda x: x[1], reverse=True)
+
+            # 使用最新的单位净值
+            for col, date_str in date_columns:
+                if pd.notna(latest_row[col]) and latest_row[col] != '':
+                    nav_value = latest_row[col]
+                    nav_date = date_str
+                    print(f"找到净值: {nav_value}, 日期: {nav_date} (列: {col})")
+                    break
+
+            # 如果没有找到带日期的列，尝试直接访问单位净值字段
             if nav_value is None:
-                if '单位净值' in latest_row:
+                if '单位净值' in latest_row and pd.notna(latest_row['单位净值']):
                     nav_value = latest_row['单位净值']
-                elif '最新净值' in latest_row:
-                    nav_value = latest_row['最新净值']
-            
-            if pd.notna(nav_value) and nav_value != '':
+                    nav_date = datetime.date.today().strftime('%Y-%m-%d')
+
+            if nav_value is not None and nav_date is not None:
                 return float(nav_value), nav_date, fund_name
             else:
                 print(f"未找到有效净值数据: {fund_code}")
         else:
             print(f"在开放式基金接口未找到数据: {fund_code}")
-        
+
         return None, None, None
-        
+
     except Exception as e:
         print(f"获取最新净值失败: {str(e)}")
         return None, None, None

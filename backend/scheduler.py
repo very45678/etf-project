@@ -134,8 +134,8 @@ class FundDataScheduler:
                 replace_existing=True
             )
             
-            # 添加套利机会检查任务 - 每15分钟执行一次
-            arb_trigger = IntervalTrigger(minutes=15)
+            # 添加套利机会检查任务 - 每天9:30开始，每15分钟执行一次
+            arb_trigger = CronTrigger(hour='9-14', minute='30/15')
             self.scheduler.add_job(
                 self.start_arb_check,
                 trigger=arb_trigger,
@@ -161,7 +161,7 @@ class FundDataScheduler:
             logger.info("价格数据采集任务：每5分钟执行一次")
             logger.info("净值数据采集任务：每天9:30执行")
             logger.info("收益率计算任务：每10分钟执行一次")
-            logger.info("套利机会检查任务：每15分钟执行一次")
+            logger.info("套利机会检查任务：交易时段9:30-15:00每15分钟执行一次")
             
         except Exception as e:
             error_msg = f"启动定时任务调度器失败: {str(e)}"
