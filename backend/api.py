@@ -144,10 +144,40 @@ CORS(app)  # 启用CORS支持
 # 初始化数据库
 init_database()
 
+# 系统启动时检查并更新净值数据（如果缺失）
+def check_and_update_nav_on_startup():
+    """系统启动时检查并更新净值数据"""
+    try:
+        from nav_fetcher import fetch_all_funds_nav
+        import datetime
+        
+        logger.info("系统启动：检查净值数据...")
+        today = datetime.date.today().strftime('%Y-%m-%d')
+        
+        # 获取当前净值数据
+        from data_store import get_nav
+        nav_data = get_nav(limit=10)
+        
+        # 检查是否有今天的净值数据
+        has_today_nav = any(nav[3] == today for nav in nav_data)
+        
+        if not has_today_nav:
+            logger.info(f"未找到 {today} 的净值数据，开始采集...")
+            fetch_all_funds_nav()
+        else:
+            logger.info(f"已存在 {today} 的净值数据，跳过采集")
+            
+    except Exception as e:
+        logger.error(f"启动时检查净值数据失败: {e}")
+
 # 启动定时任务调度器
 scheduler = None
 if os.environ.get('WERKZEUG_RUN_MAIN') != 'true':  # 避免在Reload模式下启动两次
     try:
+        # 先检查并更新净值数据
+        check_and_update_nav_on_startup()
+        
+        # 再启动定时任务
         scheduler = FundDataScheduler()
         scheduler.start_scheduler()
         logger.info("Scheduler started successfully")

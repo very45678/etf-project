@@ -4,15 +4,16 @@ import datetime
 import time
 import pandas as pd
 import re
-from data_store import insert_fund, insert_nav, insert_error
+from data_store import insert_fund, insert_nav, insert_error, has_nav_for_date
 
 # 定义货币基金列表，这些基金的净值永远是100元
 MONEY_FUNDS_WITH_FIXED_NAV = ['511990', '511800', '511850']
 
-def fetch_fund_nav(fund_code):
+def fetch_fund_nav(fund_code, force_update=False):
     """
     使用akshare获取基金净值数据
     :param fund_code: 基金代码
+    :param force_update: 是否强制更新，即使已有数据
     :return: 是否获取成功
     """
     try:
@@ -55,6 +56,11 @@ def fetch_fund_nav(fund_code):
         
         if nav is None:
             raise ValueError(f"无法获取基金净值数据: {fund_code}")
+        
+        # 检查是否已有该日期的数据（除非强制更新）
+        if not force_update and has_nav_for_date(fund_code, nav_date):
+            print(f"基金 {fund_code} 在 {nav_date} 的净值数据已存在，跳过采集")
+            return True
         
         # 存储数据
         insert_fund(fund_code, fund_name)

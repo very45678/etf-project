@@ -223,6 +223,25 @@ def get_nav(fund_code=None, limit=100):
     finally:
         close_db_connection(conn)
 
+
+def has_nav_for_date(fund_code, nav_date):
+    """
+    检查指定日期是否已有净值数据
+    :param fund_code: 基金代码
+    :param nav_date: 净值日期 (YYYY-MM-DD)
+    :return: 是否已有数据
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT COUNT(*) FROM nav WHERE fund_code = ? AND nav_date = ?', (fund_code, nav_date))
+        count = cursor.fetchone()[0]
+        close_db_connection(conn)
+        return count > 0
+    except Exception as e:
+        print(f"检查净值数据失败: {e}")
+        return False
+
 def get_yields(fund_code=None, limit=100):
     """
     获取收益率数据（扩展为返回两种收益率）
