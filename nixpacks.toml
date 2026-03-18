@@ -1,15 +1,13 @@
 [phases.setup]
-nixPkgs = ["python39", "python39Packages.pip", "python39Packages.virtualenv"]
+nixPkgs = ["python39", "python39Packages.pip"]
 
 [phases.install]
 cmds = [
-    "cd backend && python -m venv venv",
-    "cd backend && source venv/bin/activate && pip install --upgrade pip",
-    "cd backend && source venv/bin/activate && pip install -r requirements.txt"
+    "cd backend && PIP_BREAK_SYSTEM_PACKAGES=1 pip install -r requirements.txt --user"
 ]
 
 [phases.build]
 cmds = ["echo 'Build completed'"]
 
 [start]
-cmd = "cd backend && source venv/bin/activate && gunicorn api:app --bind 0.0.0.0:$PORT --timeout 120"
+cmd = "cd backend && gunicorn api:app --bind 0.0.0.0:$PORT --timeout 120"
