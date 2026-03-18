@@ -465,3 +465,6 @@ def serve_frontend(path):
 if __name__ == '__main__':
     # 开发环境使用
     app.run(debug=True, host='0.0.0.0', port=5001)
+else:
+    # 生产环境（Railway等）使用环境变量PORT
+    port = int(os.environ.get('PORT', 5001))
