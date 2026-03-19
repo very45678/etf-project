@@ -19,60 +19,50 @@ def setup_session():
 
 def fetch_etf_price(fund_code):
     """
-    获取ETF价格数据 - 使用新浪财经接口（添加买入价和卖出价采集）
+    获取ETF价格数据 - 使用AKShare的实时行情接口
     :param fund_code: 基金代码
     :return: 是否获取成功
     """
     try:
         print(f"开始获取ETF价格数据: {fund_code}")
         
-        # 使用新浪财经接口获取ETF基金数据
+        # 使用AKShare的基金实时行情接口
         try:
-            print("尝试使用新浪财经接口获取ETF基金数据...")
-            df = ak.fund_etf_category_sina(symbol="ETF基金")
-            print(f"获取到ETF基金数据，共 {len(df)} 条")
+            print("尝试使用AKShare接口获取ETF基金数据...")
             
-            # 查找指定基金代码的数据
-            fund_data = None
+            # 使用 fund_etf_hist_em 获取历史数据（包含最新价格）
+            df = ak.fund_etf_hist_em(symbol=fund_code, period="daily", 
+                                     start_date="20240101", end_date="20251231",
+                                     adjust="")
             
-            # 尝试不同的代码匹配方式
-            # 方式1: 直接匹配代码列
-            if '代码' in df.columns:
-                fund_data = df[df['代码'] == fund_code]
-            
-            # 方式2: 如果方式1没找到，尝试匹配包含基金代码的行
-            if fund_data is None or fund_data.empty:
-                for idx, row in df.iterrows():
-                    if str(fund_code) in str(row['代码']):
-                        fund_data = df.iloc[[idx]]
-                        break
-            
-            if fund_data is not None and not fund_data.empty:
-                fund_name = fund_data.iloc[0]['名称']
-                price_val = fund_data.iloc[0]['最新价']
-                buy_price_val = fund_data.iloc[0]['买入'] if '买入' in fund_data.columns else None
-                sell_price_val = fund_data.iloc[0]['卖出'] if '卖出' in fund_data.columns else None
+            if df is not None and len(df) > 0:
+                # 获取最新一条数据
+                latest_data = df.iloc[-1]
                 
-                if price_val and str(price_val) not in ['None', '', 'nan']:
+                # 获取收盘价作为最新价格
+                price_val = latest_data.get('收盘', latest_data.get('close', None))
+                
+                if price_val is not None:
                     price = float(price_val)
-                    buy_price = float(buy_price_val) if buy_price_val and str(buy_price_val) not in ['None', '', 'nan'] else None
-                    sell_price = float(sell_price_val) if sell_price_val and str(sell_price_val) not in ['None', '', 'nan'] else None
-                    
                     price_date = datetime.date.today().strftime('%Y-%m-%d')
                     
+                    # 获取基金名称
+                    fund_name_map = {
+                        '511880': '银华日利',
+                        '511990': '华宝添益'
+                    }
+                    fund_name = fund_name_map.get(fund_code, f"基金{fund_code}")
+                    
                     # 使用安全插入方法
-                    from data_store import insert_fund
                     insert_fund(fund_code, fund_name)
                     
-                    # 使用安全的价格插入方法
-                    result = safe_insert_price(fund_code, price, price_date, buy_price, sell_price)
+                    # 使用安全的价格插入方法（买入价和卖出价暂时用收盘价代替）
+                    result = safe_insert_price(fund_code, price, price_date, price, price)
                     
                     if result:
                         print(f"ETF价格数据存储成功: {fund_code}")
                         print(f"名称: {fund_name}")
                         print(f"最新价: {price}")
-                        print(f"买入价: {buy_price if buy_price else 'N/A'}")
-                        print(f"卖出价: {sell_price if sell_price else 'N/A'}")
                         return True
                     else:
                         raise ValueError("价格数据存储失败")
@@ -82,38 +72,47 @@ def fetch_etf_price(fund_code):
                 raise ValueError(f"未找到基金代码 {fund_code} 的数据")
                 
         except Exception as e:
-            print(f"新浪财经接口获取失败: {str(e)}")
-            # 如果新浪财经接口失败，尝试其他备用方法
+            print(f"AKShare接口获取失败: {str(e)}")
+            # 如果失败，尝试使用实时行情接口
             try:
-                print("尝试备用方法: 使用东方财富接口...")
-                df = ak.fund_etf_spot_em()
-                if not df.empty:
-                    fund_data = df[df['代码'] == fund_code]
-                    if not fund_data.empty:
-                        fund_name = fund_data.iloc[0]['名称']
-                        price_val = fund_data.iloc[0]['最新价']
+                print("尝试备用方法: 使用实时行情接口...")
+                
+                # 使用 stock_zh_a_spot_em 获取实时行情
+                df = ak.stock_zh_a_spot_em()
+                
+                if df is not None and len(df) > 0:
+                    # 查找指定基金代码
+                    fund_data = None
+                    for idx in range(len(df)):
+                        row = df.iloc[idx]
+                        code = str(row.get('代码', ''))
+                        if fund_code in code:
+                            fund_data = row
+                            break
+                    
+                    if fund_data is not None:
+                        fund_name = fund_data.get('名称', f'基金{fund_code}')
+                        price_val = fund_data.get('最新价', None)
                         
-                        if price_val and str(price_val) not in ['None', '', 'nan']:
+                        if price_val is not None:
                             price = float(price_val)
                             price_date = datetime.date.today().strftime('%Y-%m-%d')
                             
-                            from data_store import insert_fund
                             insert_fund(fund_code, fund_name)
-                            
-                            # 使用安全的价格插入方法
-                            result = safe_insert_price(fund_code, price, price_date)
+                            result = safe_insert_price(fund_code, price, price_date, price, price)
                             
                             if result:
                                 print(f"备用方法成功: {fund_code}, 名称={fund_name}, 价格={price}")
                                 return True
+                        
+                raise ValueError("备用方法未找到数据")
+                
             except Exception as backup_error:
                 print(f"备用方法也失败: {str(backup_error)}")
-            
-            raise ValueError(f"所有数据获取方法都失败: {str(e)}")
+                raise
         
     except Exception as e:
         print(f"价格数据采集失败: {str(e)}")
-        from data_store import insert_error
         insert_error('价格数据采集失败', str(e))
         return False
 
