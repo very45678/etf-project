@@ -1,8 +1,7 @@
 # d:\etf\backend\nav_fetcher.py
-import akshare as ak
 import datetime
 import time
-import re
+import requests
 from data_store import insert_fund, insert_nav, insert_error, has_nav_for_date
 
 # 定义货币基金列表，这些基金的净值永远是100元
@@ -18,7 +17,7 @@ FUND_NAME_MAP = {
 
 def fetch_fund_nav(fund_code, force_update=False):
     """
-    使用akshare获取基金净值数据
+    获取基金净值数据 - 使用天天基金网API
     :param fund_code: 基金代码
     :param force_update: 是否强制更新，即使已有数据
     :return: 是否获取成功
@@ -40,8 +39,8 @@ def fetch_fund_nav(fund_code, force_update=False):
             print(f"基金净值数据存储成功: {fund_code}, 名称={fund_name}, 净值={nav}, 日期={nav_date}")
             return True
         
-        # 使用akshare获取基金历史净值
-        nav, nav_date, fund_name = fetch_fund_nav_from_akshare(fund_code)
+        # 使用天天基金网API获取净值
+        nav, nav_date, fund_name = fetch_nav_from_tiantian(fund_code)
         
         if nav is None:
             raise ValueError(f"无法获取基金净值数据: {fund_code}")
@@ -63,41 +62,42 @@ def fetch_fund_nav(fund_code, force_update=False):
         insert_error('净值数据采集失败', str(e))
         return False
 
-def fetch_fund_nav_from_akshare(fund_code):
+def fetch_nav_from_tiantian(fund_code):
     """
-    使用akshare获取基金历史净值数据
+    使用天天基金网API获取基金净值
     """
     try:
-        # 获取基金历史净值
-        fund_nav_data = ak.fund_etf_hist_em(symbol=fund_code, period="daily", 
-                                            start_date="20240101", end_date="20251231",
-                                            adjust="")
+        # 天天基金网API
+        url = f"http://fundgz.1234567.com.cn/js/{fund_code}.js"
         
-        if fund_nav_data is not None and len(fund_nav_data) > 0:
-            # 获取最新一条数据
-            latest_data = fund_nav_data.iloc[-1]
-            
-            # 获取净值和日期
-            nav_value = latest_data.get('收盘', latest_data.get('close', None))
-            nav_date = latest_data.get('日期', latest_data.get('date', None))
-            
-            if nav_value is not None:
-                # 获取基金名称
-                fund_name = FUND_NAME_MAP.get(fund_code, f"基金{fund_code}")
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Referer': 'http://fund.eastmoney.com/'
+        }
+        
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            # 解析返回的JSONP数据
+            text = response.text
+            # 提取JSON部分
+            start = text.find('{')
+            end = text.rfind('}') + 1
+            if start >= 0 and end > start:
+                import json
+                data = json.loads(text[start:end])
                 
-                # 格式化日期
-                if isinstance(nav_date, str):
-                    nav_date = nav_date.replace('-', '')
-                    nav_date = f"{nav_date[:4]}-{nav_date[4:6]}-{nav_date[6:8]}"
-                else:
-                    nav_date = datetime.date.today().strftime('%Y-%m-%d')
+                nav = float(data.get('dwjz', 0))  # 单位净值
+                nav_date = data.get('jzrq', datetime.date.today().strftime('%Y-%m-%d'))
+                fund_name = data.get('name', FUND_NAME_MAP.get(fund_code, f"基金{fund_code}"))
                 
-                return float(nav_value), nav_date, fund_name
+                if nav > 0:
+                    return nav, nav_date, fund_name
         
         return None, None, None
         
     except Exception as e:
-        print(f"从akshare获取净值失败: {str(e)}")
+        print(f"从天天基金网获取净值失败: {str(e)}")
         return None, None, None
 
 def fetch_all_funds_nav(force_update=False):
