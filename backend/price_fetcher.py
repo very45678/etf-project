@@ -2,71 +2,150 @@
 import datetime
 import time
 import requests
-import json
 from data_store import insert_fund, insert_price, insert_error
 from migrate_db import safe_insert_price
 
-def fetch_etf_price(fund_code):
+def fetch_etf_price_tencent(fund_code):
     """
-    获取ETF价格数据 - 使用新浪财经API
+    使用腾讯财经接口获取ETF价格数据
     :param fund_code: 基金代码
     :return: 是否获取成功
     """
     try:
         print(f"开始获取ETF价格数据: {fund_code}")
         
-        # 使用新浪财经API获取ETF实时行情
-        # 基金代码格式：sh511880（上海）或 sz159915（深圳）
-        exchange = "sh" if fund_code.startswith("5") else "sz"
-        symbol = f"{exchange}{fund_code}"
-        
-        url = f"https://quotes.sina.cn/cn/api/quotes.php?symbol={symbol}&_={int(time.time()*1000)}"
+        # 腾讯财经接口
+        # 沪市ETF代码格式: sh{code}
+        url = f"https://qt.gtimg.cn/q=sh{fund_code}"
         
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Referer': 'https://finance.sina.com.cn'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Referer': 'https://stock.finance.qq.com/',
         }
         
         response = requests.get(url, headers=headers, timeout=10)
         
         if response.status_code == 200:
-            # 解析返回的数据
+            # 腾讯接口返回的是类似 JavaScript 的格式，需要解析
+            content = response.text
+            print(f"腾讯接口返回: {content[:200]}")
+            
+            # 解析数据格式: v_sh511880="1~银华日利~511880~100.035~100.035~100.035~..."
+            if f'v_sh{fund_code}' in content:
+                # 提取数据部分
+                start = content.find(f'v_sh{fund_code}="') + len(f'v_sh{fund_code}="')
+                end = content.find('";', start)
+                data_str = content[start:end]
+                
+                # 分割数据
+                parts = data_str.split('~')
+                
+                if len(parts) >= 45:
+                    name = parts[1]  # 基金名称
+                    price = parts[3]  # 最新价
+                    bid = parts[9]    # 买一价
+                    ask = parts[19]   # 卖一价
+                    
+                    if price and price != '0.000':
+                        price_val = float(price)
+                        bid_val = float(bid) if bid and bid != '0.000' else price_val
+                        ask_val = float(ask) if ask and ask != '0.000' else price_val
+                        # 精确到分钟的时间戳
+                        price_date = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
+                        
+                        # 存储数据
+                        insert_fund(fund_code, name)
+                        result = safe_insert_price(fund_code, price_val, price_date, bid_val, ask_val)
+                        
+                        if result:
+                            print(f"价格数据存储成功: {fund_code}, 名称={name}, 价格={price_val}, 买一={bid_val}, 卖一={ask_val}")
+                            return True
+                        else:
+                            raise ValueError("价格数据存储失败")
+                    else:
+                        raise ValueError(f"未获取到有效价格: {fund_code}")
+                else:
+                    raise ValueError(f"数据格式不正确: {parts}")
+            else:
+                raise ValueError(f"返回数据中未找到基金代码: {fund_code}")
+        else:
+            raise ValueError(f"HTTP错误: {response.status_code}")
+            
+    except Exception as e:
+        print(f"腾讯财经接口获取失败: {str(e)}")
+        return False
+
+def fetch_etf_price_eastmoney(fund_code):
+    """
+    使用东方财富接口获取ETF价格数据（备用）
+    """
+    try:
+        print(f"尝试使用东方财富接口获取: {fund_code}")
+        
+        # 东方财富接口
+        url = f"https://push2.eastmoney.com/api/qt/stock/get?secid=1.{fund_code}&fields=f43,f44,f45,f46,f47,f48,f49,f50,f51,f52,f57,f58"
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        }
+        
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
             data = response.json()
             
-            if data and 'data' in data and len(data['data']) > 0:
-                quote = data['data'][0]
+            if 'data' in data and data['data']:
+                stock_data = data['data']
                 
-                # 获取价格信息
-                price = float(quote.get('price', 0))
-                buy_price = float(quote.get('buy', 0)) if quote.get('buy') else price
-                sell_price = float(quote.get('sell', 0)) if quote.get('sell') else price
-                name = quote.get('name', f'基金{fund_code}')
+                name = stock_data.get('f58', f'基金{fund_code}')
+                price = stock_data.get('f43')  # 最新价
+                bid = stock_data.get('f44')    # 买一价
+                ask = stock_data.get('f45')    # 卖一价
                 
-                if price > 0:
-                    price_date = datetime.date.today().strftime('%Y-%m-%d')
+                if price:
+                    price_val = float(price) / 100  # 东方财富价格需要除以100
+                    bid_val = float(bid) / 100 if bid else price_val
+                    ask_val = float(ask) / 100 if ask else price_val
+                    # 精确到分钟的时间戳
+                    price_date = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
                     
-                    # 使用安全插入方法
                     insert_fund(fund_code, name)
-                    result = safe_insert_price(fund_code, price, price_date, buy_price, sell_price)
+                    result = safe_insert_price(fund_code, price_val, price_date, bid_val, ask_val)
                     
                     if result:
-                        print(f"ETF价格数据存储成功: {fund_code}")
-                        print(f"名称: {name}")
-                        print(f"最新价: {price}, 买入价: {buy_price}, 卖出价: {sell_price}")
+                        print(f"东方财富获取成功: {fund_code}, 名称={name}, 价格={price_val}")
                         return True
-                    else:
-                        raise ValueError("价格数据存储失败")
                 else:
-                    raise ValueError(f"基金代码 {fund_code} 的价格数据无效")
+                    raise ValueError(f"未获取到有效价格")
             else:
-                raise ValueError(f"未找到基金代码 {fund_code} 的数据")
+                raise ValueError(f"返回数据为空")
         else:
-            raise ValueError(f"API请求失败: {response.status_code}")
-        
+            raise ValueError(f"HTTP错误: {response.status_code}")
+            
     except Exception as e:
-        print(f"价格数据采集失败: {str(e)}")
-        insert_error('价格数据采集失败', str(e))
+        print(f"东方财富接口获取失败: {str(e)}")
         return False
+
+def fetch_etf_price(fund_code):
+    """
+    获取ETF价格数据 - 主函数
+    :param fund_code: 基金代码
+    :return: 是否获取成功
+    """
+    # 先尝试腾讯财经接口
+    if fetch_etf_price_tencent(fund_code):
+        return True
+    
+    # 失败则尝试东方财富
+    print(f"腾讯接口失败，尝试东方财富...")
+    if fetch_etf_price_eastmoney(fund_code):
+        return True
+    
+    # 都失败则记录错误
+    error_msg = f"所有接口都无法获取基金 {fund_code} 的价格数据"
+    print(error_msg)
+    insert_error('价格数据采集失败', error_msg)
+    return False
 
 def fetch_all_funds():
     """
@@ -96,15 +175,13 @@ def is_market_open():
     :return: 是否开盘
     """
     now = datetime.datetime.now()
-    # 简单的开盘时间检查（周一至周五，9:30-15:00）
-    if now.weekday() >= 5:  # 周六、周日
+    if now.weekday() >= 5:
         return False
     if now.hour < 9 or (now.hour == 9 and now.minute < 30) or now.hour >= 15:
         return False
     return True
 
 if __name__ == '__main__':
-    # 测试数据采集
     print("开始采集数据...")
     success_count = fetch_all_funds()
     print(f"数据采集完成，成功获取 {success_count} 条数据")
