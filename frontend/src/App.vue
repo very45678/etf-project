@@ -70,6 +70,7 @@
                   <el-table-column prop="yield_rate_buy" label="买入收益率" width="120" />
                   <el-table-column prop="sell_price" label="卖出价" width="100" />
                   <el-table-column prop="yield_rate_sell" label="卖出收益率" width="120" />
+                  <el-table-column prop="price_date" label="价格日期" width="150" />
                 </el-table>
               </el-card>
             </div>
